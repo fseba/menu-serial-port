@@ -1,0 +1,10 @@
+{
+    "name":"My Serial Port",
+    "port" : "/dev/ttyUSB0",
+    "baud_rate":"9600",
+    "bits_per_word":8,
+    "stop_bits":"1",
+    "parity":"None",
+    "flow_control":"None",
+    "timeout":1
+}
