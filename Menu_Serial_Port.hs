@@ -1,10 +1,10 @@
 ------------------------------------------------------------------------------
--- Modulo      :  Menu_FIFO_Haskell
+-- Modulo      :  Menu_Serial_Port
 -- Programador :  Sebastián Uriel Flores
 -- Estabilidad :  experimental
 -- Portabilidad:  experimental
 --
--- Programacion Avanzada en Haskell - Ing. Informática. 2018
+-- Programación Avanzada en Haskell - Ing. Informática. 2018
 -- 
 -----------------------------------------------------------------------------    
 
@@ -13,11 +13,9 @@
 
 module Main where
 
---import System.Exit
 import Data.Char
 import Data.Word
 import Control.Applicative
-import Control.Monad (when)
 import Control.Exception
 import System.Hardware.Serialport
 import System.IO
@@ -27,9 +25,6 @@ import Data.Aeson
 import Data.Aeson.Types 
 import qualified Data.ByteString.Lazy as B
 import qualified Data.ByteString.Char8 as B8
-import qualified Data.Text.Lazy.IO as T
-import qualified Data.Text.Lazy.Encoding as T
-
 
 main:: IO()
 main = do  
@@ -57,19 +52,22 @@ main = do
 
                         case (readable permissions, writable permissions) of
                               (True, True) -> do
+                                    --Si el Puerto Serie posee permisos de lectura y escritura, entonces
+                                    --hago loop en el menu de opciones del usuario, 
+                                    --y controlo posibles errores del tipo IOException
                                     let loopSerial = withSerial serialPort serialPortSettings (\handle -> do
                                           loopMenu handle                                                
                                           ) 
             
                                     loopSerial `catch` ioErrorHandler
                               (False,True) -> do
-                                    --Intentar cambiar los permisos desde este software. En caso de no poder, mostrar error
+                                    --TODO: Intentar cambiar los permisos desde este software. En caso de no poder, mostrar error
                                     putStrLn "No se poseen permisos de Lectura en la ruta especificada al Puerto Serie"
                               (True, False) -> do
-                                    --Intentar cambiar los permisos desde este software. En caso de no poder, mostrar error
+                                    --TODO: Intentar cambiar los permisos desde este software. En caso de no poder, mostrar error
                                     putStrLn "No se poseen permisos de Escritura en la ruta especificada al Puerto Serie"
                               (False, False) -> do
-                                    --Intentar cambiar los permisos desde este software. En caso de no poder, mostrar error
+                                    --TODO: Intentar cambiar los permisos desde este software. En caso de no poder, mostrar error                                    
                                     putStrLn "No se poseen permisos de Lectura y Escritura en la ruta especificada al Puerto Serie"
                   else do
                         putStrLn "La ruta especificada al Puerto Serie no existe, o bien, no corresponde a un Puerto Serie, o bien, no se poseen los permisos de acceso a esa ruta."
@@ -80,7 +78,7 @@ main = do
             --}
 
 ioErrorHandler :: IOError -> IO ()
-ioErrorHandler ioError = putStrLn $ "Error: " ++ show ioError
+ioErrorHandler ioError = putStrLn $ "Ha ocurrido un Error: " ++ show ioError
 
 loopMenu :: SerialPort -> IO()
 loopMenu serialPort = do            
@@ -94,12 +92,18 @@ loopMenu serialPort = do
 
       case userInput of
             "1" -> do
+                  --Ingreso la velocidad de los motores, asegurandome que sea de tipo Int
                   motor1 <- getLineUntil "Ingrese la velocidad del motor izquierdo --> " :: (IO Int)
                   motor2 <- getLineUntil "Ingrese la velocidad del motor derecho --> " :: (IO Int)
+
+                  --Envío la velocidad de los motores, codificada en cadenas de 8 bits
                   send serialPort $ B8.pack ("vel:" ++ (show motor1) ++ "," ++ (show motor2) ++ "\r")
                   loopMenu serialPort
             "2" -> do
-                  s <- recv serialPort 10                  
+                  --Leo a lo mas 16 bits del buffer del Puerto Serie
+                  s <- recv serialPort 16
+
+                  --Muestro por pantalla la cadena recibida
                   B8.putStrLn s
                   loopMenu serialPort
             "3" -> return ()
@@ -110,33 +114,6 @@ loopMenu serialPort = do
                   putStrLn "*************************************"
                   loopMenu serialPort
 
-{--
-getOption :: String -> ColaProveedores -> ColaItems -> FilePath -> FilePath -> IO()
-getOption opcion proveedores items proveedoresFileName itemsFileName = case opcion of
-      "1" -> do
-            showProveedores proveedores
-            loopMenu proveedores items proveedoresFileName itemsFileName
-      "2" -> do
-            showItems items
-            loopMenu proveedores items proveedoresFileName itemsFileName
-      "3" -> do 
-            proveedoresNuevo <- addProveedor proveedores proveedoresFileName
-            loopMenu proveedoresNuevo items proveedoresFileName itemsFileName
-      "4" -> do 
-            itemsNuevo <- addItem items itemsFileName
-            loopMenu proveedores itemsNuevo proveedoresFileName itemsFileName
-      "5" -> do 
-            proveedoresNuevo <- supressProveedor proveedores proveedoresFileName
-            loopMenu proveedoresNuevo items proveedoresFileName itemsFileName
-      "6" -> do 
-            itemsNuevo <- supressItem items itemsFileName
-            loopMenu proveedores itemsNuevo proveedoresFileName itemsFileName
-      otherwise -> do 
-            putStrLn "---------------------------------------------------------"
-            putStrLn "Ha ingresado una opción incorrecta. Intente nuevamente"
-            putStrLn "---------------------------------------------------------"            
-            loopMenu proveedores items proveedoresFileName itemsFileName
---}
 -- Repite una instrucción *getLine* hasta que el Usuario ingrese
 -- un dato del tipo *a*.
 getLineUntil :: Read a => String -> IO a
@@ -187,6 +164,7 @@ retrieveSettings settingsFileName = do
             Just settings -> do                  
                   return $ parseMaybe parseSerialPortJSON =<< decode settings                  
 
+-- Es un Parser para el JSON con la configuraciones del Puerto Serie a leer
 parseSerialPortJSON :: Value -> Parser (String, SerialPortSettings)
 parseSerialPortJSON = withObject "Serial Port Name and Settings" $ \o -> do
       --name <- i .:? "name" .!= "Default name"
